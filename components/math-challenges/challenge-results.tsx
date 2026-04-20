@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { CheckCircle, XCircle, Award, Clock, TrendingUp } from 'lucide-react';
 
 interface ChallengeResultsProps {
@@ -35,13 +37,141 @@ export default function ChallengeResults({ results, challenge, onBackToList }: C
     return 'text-orange-400';
   };
 
+  // Trigger confetti animations on component mount
+  useEffect(() => {
+    // Trigger confetti based on performance
+    const triggerConfetti = () => {
+      if (results.percentage >= 80) {
+        // Excellent performance - bigger celebration
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
+          gravity: 0.8,
+          scalar: 1.2,
+          decay: 0.94,
+        });
+
+        // Second burst
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            spread: 100,
+            origin: { y: 0.5 },
+            colors: ['#8b5cf6', '#d946ef', '#ec4899'],
+            gravity: 1,
+            scalar: 0.8,
+          });
+        }, 500);
+      } else if (results.percentage >= 60) {
+        // Good performance - moderate celebration
+        confetti({
+          particleCount: 60,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#3b82f6', '#06b6d4', '#14b8a6'],
+          gravity: 0.7,
+          scalar: 1,
+        });
+      } else if (results.percentage >= 40) {
+        // Keep practicing - light celebration
+        confetti({
+          particleCount: 30,
+          spread: 50,
+          origin: { y: 0.7 },
+          colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
+          gravity: 0.6,
+          scalar: 0.8,
+        });
+      } else {
+        // Failed attempt - sad particles falling like rain
+        confetti({
+          particleCount: 50,
+          spread: 90,
+          origin: { y: -0.1 },
+          colors: ['#6b7280', '#9ca3af', '#d1d5db', '#ef4444'],
+          gravity: 1.5,
+          scalar: 1,
+          decay: 0.92,
+          shapes: ['square'],
+        });
+
+        // Second wave of sad particles
+        setTimeout(() => {
+          confetti({
+            particleCount: 40,
+            spread: 120,
+            origin: { y: -0.05, x: 0.3 },
+            colors: ['#7f1d1d', '#b91c1c', '#dc2626', '#6b7280'],
+            gravity: 1.3,
+            scalar: 0.9,
+            decay: 0.93,
+          });
+        }, 400);
+
+        // Third wave
+        setTimeout(() => {
+          confetti({
+            particleCount: 35,
+            spread: 100,
+            origin: { y: -0.08, x: 0.7 },
+            colors: ['#9ca3af', '#d1d5db', '#ef4444', '#7f1d1d'],
+            gravity: 1.4,
+            scalar: 0.85,
+            decay: 0.91,
+          });
+        }, 800);
+      }
+    };
+
+    // Trigger confetti after a short delay for better visual effect
+    const timer = setTimeout(triggerConfetti, 300);
+    return () => clearTimeout(timer);
+  }, [results.percentage]);
+
   return (
     <div className="w-full space-y-6">
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0) rotate(0deg); }
+          10%, 90% { transform: translateX(-2px) rotate(-0.5deg); }
+          20%, 80% { transform: translateX(2px) rotate(0.5deg); }
+          30%, 70% { transform: translateX(-2px) rotate(-0.5deg); }
+          40%, 60% { transform: translateX(2px) rotate(0.5deg); }
+          50% { transform: translateX(0) rotate(0deg); }
+        }
+        
+        @keyframes sadBounce {
+          0%, 100% { transform: scale(1); }
+          25% { transform: scale(0.98); }
+          50% { transform: scale(0.96); }
+          75% { transform: scale(0.98); }
+        }
+        
+        @keyframes pulse-red {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        
+        .shake-animation {
+          animation: shake 0.6s cubic-bezier(0.36, 0, 0.66, -0.56);
+        }
+        
+        .sad-bounce {
+          animation: sadBounce 1s ease-in-out;
+        }
+        
+        .pulse-red-animation {
+          animation: pulse-red 1.5s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Main Results Card */}
-      <div className={`bg-gradient-to-br ${getPerformanceColor(results.percentage)} rounded-xl p-8 border-2`}>
+      <div className={`bg-gradient-to-br ${getPerformanceColor(results.percentage)} rounded-xl p-8 border-2 transition-all duration-500 ${results.percentage < 40 ? 'shake-animation sad-bounce' : ''}`}>
         <div className="text-center">
           <div className="mb-6 flex justify-center">
-            <Award className={`w-16 h-16 ${getScoreColor(results.percentage)}`} />
+            <Award className={`w-16 h-16 ${getScoreColor(results.percentage)} ${results.percentage < 40 ? 'pulse-red-animation' : ''}`} />
           </div>
           <h2 className="text-4xl font-bold text-white mb-2">{getPerformanceMessage(results.percentage)}</h2>
           <p className="text-gray-400 text-lg">{challenge.title}</p>
