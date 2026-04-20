@@ -35,6 +35,38 @@ export default function MemoryMatchPage() {
     { pair: 'confused', category: 'Emotion' },
   ];
 
+  const emotionStories = [
+    {
+      title: 'Story: The Forgotten Birthday',
+      content: 'Riya waited the whole day for her best friend Arif to wish her on her birthday.They had been close for years and Arif never forgot before.\n\nAt night, she saw Arif posting pictures online with other friends, laughing and celebrating.Riya felt hurt and ignored.The next morning, Arif messaged: " I\'m really sorry. Yesterday was chaotic at home. I didn\'t even check my phone properly."',
+    },
+  ];
+
+  const emotionQuestionsList = [
+    {
+      id: 1,
+      question: 'What emotion is Riya most likely feeling?',
+      options: ['Hurt', 'Angry', 'Jealous', 'All of the above'],
+    },
+    {
+      id: 2,
+      question: 'Should Riya forgive Arif immediately? Why or why not?',
+      options: [],
+      isTextQuestion: true,
+    },
+    {
+      id: 3,
+      question: 'What would be the most emotionally intelligent response?',
+      options: ['Ignore him', 'Reply angrily', 'Ask calmly what happened', 'Block him'],
+    },
+    {
+      id: 4,
+      question: 'What logical factor should Riya consider before reacting?',
+      options: [],
+      isTextQuestion: true,
+    },
+  ];
+
   const [cards, setCards] = useState<Card[]>([]);
   const [flipped, setFlipped] = useState<number[]>([]);
   const [matched, setMatched] = useState<number[]>([]);
@@ -46,7 +78,8 @@ export default function MemoryMatchPage() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showCategorySelection, setShowCategorySelection] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-
+  const [showStory, setShowStory] = useState(false);
+  const [showQuestions, setShowQuestions] = useState(false);
   // Initialize game when category is selected
   useEffect(() => {
     if (selectedCategory && !showCategorySelection) {
@@ -118,6 +151,8 @@ export default function MemoryMatchPage() {
     setElapsedTime(0);
     setShowConfirmation(true);
     setGameStarted(false);
+    setShowStory(false);
+    setShowQuestions(false);
   };
 
   const handleCategorySelect = (category: string) => {
@@ -127,12 +162,33 @@ export default function MemoryMatchPage() {
 
   const handleStartGame = () => {
     setShowConfirmation(false);
-    setGameStarted(true);
-    setStartTime(Date.now());
+    if (selectedCategory === 'Emotion') {
+      setShowStory(true);
+    } else {
+      setGameStarted(true);
+      setStartTime(Date.now());
+    }
   };
 
   const handleNoStart = () => {
     router.push('/');
+  };
+
+  const handleStoryComplete = () => {
+    setShowStory(false);
+    setShowQuestions(true);
+  };
+
+  const handleQuestionsComplete = () => {
+    setShowQuestions(false);
+    setGameStarted(true);
+    setStartTime(Date.now());
+  };
+
+  const handleSkipStory = () => {
+    setShowStory(false);
+    setGameStarted(true);
+    setStartTime(Date.now());
   };
 
   const toggleCard = (index: number) => {
@@ -192,13 +248,13 @@ export default function MemoryMatchPage() {
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={() => handleCategorySelect('Memory')}
-                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition"
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
                 >
                   Memory
                 </button>
                 <button
                   onClick={() => handleCategorySelect('Emotion')}
-                  className="px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition"
+                  className="px-8 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
                 >
                   Emotion
                 </button>
@@ -215,15 +271,81 @@ export default function MemoryMatchPage() {
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={handleStartGame}
-                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition"
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
                 >
                   Yes
                 </button>
                 <button
                   onClick={handleNoStart}
-                  className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition"
+                  className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
                 >
                   No
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Story Display */}
+        {showStory && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-[#1a1f2b] border border-gray-800 rounded-lg p-8 max-w-2xl max-h-[80vh] overflow-y-auto">
+              <h2 className="text-3xl font-bold text-white mb-6 text-center">{emotionStories[0].title}</h2>
+              <p className="text-gray-300 text-lg leading-relaxed whitespace-pre-wrap mb-8">
+                {emotionStories[0].content}
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={handleStoryComplete}
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+                >
+                  Continue to Game
+                </button>
+                <button
+                  onClick={handleSkipStory}
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Questions Display */}
+        {showQuestions && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-[#1a1f2b] border border-gray-800 rounded-lg p-8 max-w-3xl max-h-[85vh] overflow-y-auto">
+              <h2 className="text-3xl font-bold text-white mb-8 text-center">❓ Questions</h2>
+              <div className="space-y-8">
+                {emotionQuestionsList.map((q) => (
+                  <div key={q.id} className="bg-[#2a3040] rounded-lg p-6 border border-gray-700">
+                    <h3 className="text-lg font-semibold text-white mb-4">{q.id}. {q.question}</h3>
+                    {q.isTextQuestion ? (
+                      <input
+                        type="text"
+                        placeholder="Your answer here..."
+                        className="w-full px-4 py-2 bg-[#0f1219] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {q.options.map((option, index) => (
+                          <label key={index} className="flex items-center gap-3 p-3 bg-[#1a1f2b] rounded-lg hover:bg-[#2a3040] cursor-pointer transition">
+                            <input type="radio" name={`q${q.id}`} className="w-4 h-4 cursor-pointer" />
+                            <span className="text-white">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-4 justify-center mt-8">
+                <button
+                  onClick={handleQuestionsComplete}
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+                >
+                  Proceed to Game
                 </button>
               </div>
             </div>
