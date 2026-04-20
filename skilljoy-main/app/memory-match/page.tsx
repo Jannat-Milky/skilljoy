@@ -37,8 +37,12 @@ export default function MemoryMatchPage() {
 
   const emotionStories = [
     {
-      title: 'Story: The Forgotten Birthday',
+      title: 'Story 1: The Forgotten Birthday',
       content: 'Riya waited the whole day for her best friend Arif to wish her on her birthday.They had been close for years and Arif never forgot before.\n\nAt night, she saw Arif posting pictures online with other friends, laughing and celebrating.Riya felt hurt and ignored.The next morning, Arif messaged: " I\'m really sorry. Yesterday was chaotic at home. I didn\'t even check my phone properly."',
+    },
+    {
+      title: 'Story 2: The Silent Student',
+      content: 'Rahim used to participate in every class discussion.But recently, he stopped talking, stopped smiling and always sat quietly.One day, the teacher asked him a question. He stayed silent.Some students laughed.\n\nLater, it was revealed that Rahim\'s father lost his job and things at home were very stressful.',
     },
   ];
 
@@ -67,6 +71,11 @@ export default function MemoryMatchPage() {
     },
   ];
 
+  const emotionSuggestions = {
+    title: 'Suggestions & Learning',
+    content: 'If Riya replied, "I understand. I was just really looking forward to hearing from you. Let\'s catch up soon?" It will take them into another move.\n\nThis story highlights the importance of communication and understanding in friendships & all kinds of relations.',
+  };
+
   const [cards, setCards] = useState<Card[]>([]);
   const [flipped, setFlipped] = useState<number[]>([]);
   const [matched, setMatched] = useState<number[]>([]);
@@ -79,7 +88,9 @@ export default function MemoryMatchPage() {
   const [showCategorySelection, setShowCategorySelection] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showStory, setShowStory] = useState(false);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [showQuestions, setShowQuestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   // Initialize game when category is selected
   useEffect(() => {
     if (selectedCategory && !showCategorySelection) {
@@ -152,7 +163,9 @@ export default function MemoryMatchPage() {
     setShowConfirmation(true);
     setGameStarted(false);
     setShowStory(false);
+    setCurrentStoryIndex(0);
     setShowQuestions(false);
+    setShowSuggestions(false);
   };
 
   const handleCategorySelect = (category: string) => {
@@ -175,20 +188,39 @@ export default function MemoryMatchPage() {
   };
 
   const handleStoryComplete = () => {
-    setShowStory(false);
-    setShowQuestions(true);
+    if (currentStoryIndex === 0) {
+      // Story 1: Continue to Game leads to questions
+      setShowStory(false);
+      setShowQuestions(true);
+    } else if (currentStoryIndex === 1) {
+      // Story 2: Continue to Game starts the game
+      setShowStory(false);
+      setGameStarted(true);
+      setStartTime(Date.now());
+    }
   };
 
   const handleQuestionsComplete = () => {
     setShowQuestions(false);
-    setGameStarted(true);
-    setStartTime(Date.now());
+    setShowSuggestions(true);
+  };
+
+  const handleSuggestionsComplete = () => {
+    setShowSuggestions(false);
+    setCurrentStoryIndex(1);
+    setShowStory(true);
   };
 
   const handleSkipStory = () => {
-    setShowStory(false);
-    setGameStarted(true);
-    setStartTime(Date.now());
+    if (currentStoryIndex === 0) {
+      // Story 1: Skip goes to Story 2
+      setCurrentStoryIndex(1);
+    } else if (currentStoryIndex === 1) {
+      // Story 2: Skip starts the game
+      setShowStory(false);
+      setGameStarted(true);
+      setStartTime(Date.now());
+    }
   };
 
   const toggleCard = (index: number) => {
@@ -290,9 +322,9 @@ export default function MemoryMatchPage() {
         {showStory && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-[#1a1f2b] border border-gray-800 rounded-lg p-8 max-w-2xl max-h-[80vh] overflow-y-auto">
-              <h2 className="text-3xl font-bold text-white mb-6 text-center">{emotionStories[0].title}</h2>
+              <h2 className="text-3xl font-bold text-white mb-6 text-center">{emotionStories[currentStoryIndex].title}</h2>
               <p className="text-gray-300 text-lg leading-relaxed whitespace-pre-wrap mb-8">
-                {emotionStories[0].content}
+                {emotionStories[currentStoryIndex].content}
               </p>
               <div className="flex gap-4 justify-center">
                 <button
@@ -346,6 +378,26 @@ export default function MemoryMatchPage() {
                   className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
                 >
                   Proceed to Game
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Suggestions Display */}
+        {showSuggestions && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-[#1a1f2b] border border-gray-800 rounded-lg p-8 max-w-2xl max-h-[80vh] overflow-y-auto">
+              <h2 className="text-3xl font-bold text-white mb-6 text-center">💡 {emotionSuggestions.title}</h2>
+              <p className="text-gray-300 text-lg leading-relaxed whitespace-pre-wrap mb-8">
+                {emotionSuggestions.content}
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={handleSuggestionsComplete}
+                  className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+                >
+                  Next
                 </button>
               </div>
             </div>
