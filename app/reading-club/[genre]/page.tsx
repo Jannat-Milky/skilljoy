@@ -2,17 +2,63 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import { 
+  getBooksByGenre, 
+  addBook, 
+  deleteBook, 
+  getBookProgress, 
+  updateProgress, 
+  getBookDiscussions, 
+  addDiscussion,
+  getUserName,
+  Book,
+  saveBooks,
+  loadBooks
+} from '@/app/lib/localStore';
 
 export default function GenrePage() {
   const params = useParams();
   const genre = params.genre as string;
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  if (!mounted) {
+    return (
+      <main className="min-h-screen bg-[#0f1219] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+      </main>
+    );
+  }
+  
+  return <BooksContent genre={genre} />;
+}
+
+function BooksContent({ genre }: { genre: string }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBook, setSelectedBook] = useState<string | null>(null);
-  const [showModeSelection, setShowModeSelection] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<string | null>(null);
-  const [showJoinRoomModal, setShowJoinRoomModal] = useState(false);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [showAddBook, setShowAddBook] = useState(false);
+  const [showEditBook, setShowEditBook] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [showDiscussion, setShowDiscussion] = useState(false);
+  const [newBook, setNewBook] = useState({ title: '', trackingMode: 'chapter' as 'chapter' | 'page', totalChapters: 0, totalPages: 0 });
+  const [editBook, setEditBook] = useState<Book | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<ReturnType<typeof getBookProgress>>([]);
+  const [discussions, setDiscussions] = useState<ReturnType<typeof getBookDiscussions>>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [userProgress, setUserProgress] = useState({ currentChapter: 0, currentPage: 0 });
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const userName = getUserName();
 
   const genreInfo: Record<string, { name: string; color: string }> = {
     horror: { name: 'Horror', color: 'from-red-600 to-orange-700' },
@@ -25,361 +71,457 @@ export default function GenrePage() {
 
   const info = genreInfo[genre] || { name: genre, color: 'from-gray-600 to-gray-700' };
 
-  const allBooks = [
-    { 
-      id: `${genre}-1`, 
-      title: genre === 'horror' ? 'The Haunted Manor' : 
-             genre === 'scifi' ? 'Galaxy Explorers' :
-             genre === 'fantasy' ? 'Dragon\'s Quest' :
-             genre === 'mystery' ? 'The Missing Heir' :
-             genre === 'romance' ? 'Eternal Love' : 'Lost Treasure',
-      author: 'Edgar Black', 
-      readers: 45, 
-      chapters: 24, 
-      status: 'Popular', 
-      statusColor: 'bg-orange-600',
-      imagePath: `/images/books/book-${genre}-1.png`
-    },
-    { 
-      id: `${genre}-2`, 
-      title: genre === 'horror' ? 'Dark Secrets' : 
-             genre === 'scifi' ? 'Neon City 2099' :
-             genre === 'fantasy' ? 'The Magic Kingdom' :
-             genre === 'mystery' ? 'Secret of the Manor' :
-             genre === 'romance' ? 'Love Story' : 'Mountain Quest',
-      author: 'Mary Shelley', 
-      readers: 32, 
-      chapters: 18, 
-      status: 'New', 
-      statusColor: 'bg-green-600',
-      imagePath: `/images/books/book-${genre}-2.png`
-    },
-    { 
-      id: `${genre}-3`, 
-      title: genre === 'horror' ? 'Midnight Whispers' : 
-             genre === 'scifi' ? 'Space Odyssey' :
-             genre === 'fantasy' ? 'Enchanted Forest' :
-             genre === 'mystery' ? 'The Locked Room' :
-             genre === 'romance' ? 'Summer Romance' : 'Desert Expedition',
-      author: 'Stephen Dark', 
-      readers: 28, 
-      chapters: 21, 
-      status: 'Trending', 
-      statusColor: 'bg-blue-600',
-      imagePath: null
-    },
-    { 
-      id: `${genre}-4`, 
-      title: genre === 'horror' ? 'The Last Chapter' : 
-             genre === 'scifi' ? 'Robot Uprising' :
-             genre === 'fantasy' ? 'Wizard\'s Tower' :
-             genre === 'mystery' ? 'The Final Clue' :
-             genre === 'romance' ? 'Winter Kiss' : 'Jungle Adventure',
-      author: 'Anne Rice', 
-      readers: 56, 
-      chapters: 30, 
-      status: 'Popular', 
-      statusColor: 'bg-orange-600',
-      imagePath: null
-    },
-  ];
+  useEffect(() => {
+    loadBooksData();
+  }, [genre]);
 
-  const readingModes = [
-    { 
-      id: 'solo', 
-      name: 'Solo Read', 
-      icon: '/images/modes/mode-solo.png',
-      description: 'Read at your own pace',
-      color: 'from-blue-600 to-cyan-600'
-    },
-    { 
-      id: 'dual', 
-      name: 'Dual Read', 
-      icon: '/images/modes/mode-dual.png',
-      description: 'Read with a partner',
-      color: 'from-purple-600 to-pink-600'
-    },
-    { 
-      id: 'group', 
-      name: 'Group Read', 
-      icon: '/images/modes/mode-group.png',
-      description: 'Join a reading room',
-      color: 'from-green-600 to-emerald-600'
-    },
-  ];
-
-  const activeRooms = [
-    { id: 1, name: 'Night Readers', members: 8, chapter: 5, book: 'The Haunted Manor' },
-    { id: 2, name: 'Mystery Solvers', members: 5, chapter: 3, book: 'Dark Secrets' },
-    { id: 3, name: 'Late Night Club', members: 12, chapter: 7, book: 'Midnight Whispers' },
-  ];
-
-  const filteredBooks = allBooks.filter(b => 
-    b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.author.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleBookClick = (bookId: string) => {
-    setSelectedBook(bookId);
-    setShowModeSelection(true);
+  const loadBooksData = () => {
+    setBooks(getBooksByGenre(genre));
   };
 
-  const getBookGradient = (index: number) => {
-    const gradients = [
-      'from-red-700 to-orange-800',
-      'from-blue-700 to-cyan-800',
-      'from-purple-700 to-pink-800',
-      'from-green-700 to-emerald-800',
-    ];
-    return gradients[index % gradients.length];
+  const handleImageError = (bookId: string) => {
+    setImageErrors(prev => ({ ...prev, [bookId]: true }));
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddBook = () => {
+    if (!newBook.title) return;
+    
+    let imagePath = '';
+    if (imagePreview) {
+      imagePath = imagePreview; // Use base64 for now
+    } else {
+      const genreFolder = genre.charAt(0).toUpperCase() + genre.slice(1);
+      imagePath = `/images/books/${genreFolder}/book-${genre}-${books.length + 1}.png`;
+    }
+    
+    const added = addBook({
+      title: newBook.title,
+      genre,
+      image: imagePath,
+      trackingMode: newBook.trackingMode,
+      totalChapters: newBook.trackingMode === 'chapter' ? newBook.totalChapters : undefined,
+      totalPages: newBook.trackingMode === 'page' ? newBook.totalPages : undefined,
+    });
+    
+    setBooks([...books, added]);
+    setNewBook({ title: '', trackingMode: 'chapter', totalChapters: 0, totalPages: 0 });
+    setSelectedImage(null);
+    setImagePreview('');
+    setShowAddBook(false);
+  };
+
+  const handleEditBook = (book: Book) => {
+    setEditBook({...book});
+    setShowEditBook(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editBook) return;
+    
+    const allBooks = loadBooks();
+    const index = allBooks.findIndex(b => b.id === editBook.id);
+    if (index !== -1) {
+      allBooks[index] = editBook;
+      saveBooks(allBooks);
+      loadBooksData();
+    }
+    setShowEditBook(false);
+    setEditBook(null);
+  };
+
+  const handleDeleteBook = (bookId: string) => {
+    if (confirm('Are you sure you want to delete this book?')) {
+      deleteBook(bookId);
+      loadBooksData();
+      setSelectedBook(null);
+      setShowProgress(false);
+      setShowDiscussion(false);
+    }
+  };
+
+  const handleSelectBook = (book: Book) => {
+    setSelectedBook(book);
+    setProgress(getBookProgress(book.id));
+    setDiscussions(getBookDiscussions(book.id));
+    const myProgress = getBookProgress(book.id).find(p => p.userName === userName);
+    setUserProgress({
+      currentChapter: myProgress?.currentChapter || 1,
+      currentPage: myProgress?.currentPage || 1,
+    });
+    setShowProgress(true);
+  };
+
+  const handleUpdateProgress = () => {
+    if (!selectedBook) return;
+    updateProgress(selectedBook.id, {
+      currentChapter: selectedBook.trackingMode === 'chapter' ? userProgress.currentChapter : undefined,
+      currentPage: selectedBook.trackingMode === 'page' ? userProgress.currentPage : undefined,
+    });
+    setProgress(getBookProgress(selectedBook.id));
+  };
+
+  const handleAddDiscussion = () => {
+    if (!selectedBook || !newMessage.trim()) return;
+    addDiscussion(selectedBook.id, newMessage, {
+      chapter: selectedBook.trackingMode === 'chapter' ? userProgress.currentChapter : undefined,
+      page: selectedBook.trackingMode === 'page' ? userProgress.currentPage : undefined,
+    });
+    setDiscussions(getBookDiscussions(selectedBook.id));
+    setNewMessage('');
+  };
+
+  const filteredBooks = books.filter(b => 
+    b.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Default book covers by genre
+  const getDefaultCover = () => {
+    const covers: Record<string, string> = {
+      horror: '/images/books/Horror/book-horror-1.png',
+      fantasy: '/images/books/Fantasy/book-fantasy-1.png',
+      romance: '/images/books/romance/book-romance-1.png',
+      scifi: '/images/books/sci-fi/book-scifi-1.png',
+      mystery: '/images/books/mystery/book-mystery-1.png',
+      adventure: '/images/books/adventure/book-adventure-1.png',
+    };
+    return covers[genre] || '/images/featured-reading.png';
   };
 
   return (
     <main className="min-h-screen bg-[#0f1219]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-[#1a1f2b] border-b border-gray-800">
-        <div className="px-6 py-4">
+      <header className="bg-[#1a1f2b] border-b border-gray-800 sticky top-0 z-40">
+        <div className="px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/reading-club" className="flex items-center gap-2 text-gray-400 hover:text-white transition">
-                <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <Link href="/reading-club" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                <span className="text-base whitespace-nowrap">Back to Genres</span>
+                <span className="text-sm">Back to Genres</span>
               </Link>
-              <h1 className={`text-2xl font-bold bg-gradient-to-r ${info.color} bg-clip-text text-transparent whitespace-nowrap`}>
+              <h1 className={`text-3xl font-bold bg-gradient-to-r ${info.color} bg-clip-text text-transparent`}>
                 {info.name} Books
               </h1>
             </div>
             
-            <div className="flex-1 max-w-2xl mx-8">
-              <div className="flex items-center bg-[#2a3040] rounded-full px-6 py-3 border border-gray-700">
-                <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search books or authors..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent text-white text-base ml-3 outline-none placeholder:text-gray-500 w-full"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-gray-700 rounded-full flex-shrink-0">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+            <div className="flex items-center gap-3">
+              <div className="w-80">
+                <div className="flex items-center bg-[#2a3040] rounded-full px-5 py-3 border border-gray-700">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input type="text" placeholder="Search books..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-transparent text-white text-base ml-3 outline-none placeholder:text-gray-500 w-full" />
+                </div>
               </div>
+              <button onClick={() => setShowAddBook(true)} className="px-5 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition font-medium flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Book
+              </button>
             </div>
-            
-            <div className="w-24"></div>
           </div>
         </div>
       </header>
 
-      <div className="pt-[73px] p-6">
-        {/* Active Rooms Banner */}
-        <div className={`bg-gradient-to-r ${info.color} rounded-2xl p-6 mb-8 max-w-5xl mx-auto mt-4`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-1">Active Reading Rooms</h2>
-              <p className="text-gray-200">Join readers currently discussing {info.name} books</p>
-            </div>
-            <button
-              onClick={() => setShowJoinRoomModal(true)}
-              className="px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition font-medium whitespace-nowrap"
-            >
-              Join a Room
-            </button>
-          </div>
-        </div>
-
-        {/* Books Grid */}
-        <h2 className="text-2xl font-semibold text-white mb-4">Available Books</h2>
-        
-        {filteredBooks.length === 0 ? (
-          <div className="text-center py-20">
-            <h3 className="text-2xl text-white font-semibold mb-2">No books found</h3>
-            <p className="text-gray-400">Try searching for something else</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredBooks.map((book, index) => (
-              <div key={book.id} className="group">
-                <div className="bg-[#1a1f2b] rounded-xl overflow-hidden border border-gray-800 hover:border-purple-500/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl h-full flex flex-col">
-                  {/* Book Cover */}
-                  <div className="aspect-[3/4] relative">
-                    {book.imagePath ? (
-                      <Image 
-                        src={book.imagePath} 
-                        alt={book.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      />
-                    ) : (
-                      <div className={`absolute inset-0 bg-gradient-to-br ${getBookGradient(index)} flex items-center justify-center`}>
-                        <svg className="w-16 h-16 text-white/40" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
-                    <div className="absolute top-3 left-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${book.statusColor}`}>
-                        {book.status}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <h3 className="text-white font-bold text-xl truncate">{book.title}</h3>
-                      <p className="text-gray-300 truncate">{book.author}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Book Details */}
-                  <div className="p-4 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-1 text-gray-400">
-                        <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                        </svg>
-                        <span className="text-sm whitespace-nowrap">{book.readers} readers</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-400">
-                        <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z" />
-                        </svg>
-                        <span className="text-sm whitespace-nowrap">{book.chapters} chapters</span>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleBookClick(book.id)}
-                      className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium text-base whitespace-nowrap"
-                    >
-                      Select Book
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Join Room Modal */}
-      {showJoinRoomModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1f2b] rounded-2xl p-6 max-w-md w-full border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Join a Reading Room</h3>
-              <button 
-                onClick={() => setShowJoinRoomModal(false)}
-                className="p-2 text-gray-400 hover:text-white transition"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+      <div className="px-8 py-8">
+        <div className="max-w-[1600px] mx-auto">
+          <h2 className="text-2xl font-semibold text-white mb-5">Available Books ({books.length})</h2>
+          
+          {filteredBooks.length === 0 ? (
+            <div className="text-center py-20">
+              <svg className="w-20 h-20 text-gray-600 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <h3 className="text-2xl text-white font-semibold mb-2">No books yet</h3>
+              <p className="text-gray-400 mb-4">Be the first to add a book to this genre!</p>
+              <button onClick={() => setShowAddBook(true)} className="px-6 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition font-medium">
+                Add Your First Book
               </button>
             </div>
-            
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {activeRooms.map((room) => (
-                <Link
-                  key={room.id}
-                  href={`/reading-club/room/${room.id}`}
-                  onClick={() => setShowJoinRoomModal(false)}
-                  className="block p-4 bg-[#2a3040] rounded-xl hover:bg-[#353d50] transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-white font-medium">{room.name}</span>
-                      <p className="text-gray-400 text-sm">{room.book}</p>
-                      <span className="text-gray-400 text-xs">Chapter {room.chapter}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                      </svg>
-                      <span>{room.members}</span>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredBooks.map((book) => {
+                const bookProgress = getBookProgress(book.id);
+                const hasImageError = imageErrors[book.id];
+                const displayImage = book.image && book.image.startsWith('data:') ? book.image : 
+                                   (book.image || getDefaultCover());
+                
+                return (
+                  <div key={book.id} className="group">
+                    <div className="bg-[#1a1f2b] rounded-xl overflow-hidden border border-gray-800 hover:border-purple-500/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
+                      <div className="aspect-[3/4] relative bg-gradient-to-br from-gray-800 to-gray-900">
+                        {!hasImageError && (
+                          <Image 
+                            src={displayImage} 
+                            alt={book.title} 
+                            fill 
+                            className="object-cover" 
+                            sizes="(max-width: 640px) 100vw, 25vw" 
+                            unoptimized
+                            onError={() => handleImageError(book.id)}
+                          />
+                        )}
+                        
+                        {hasImageError && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                            <svg className="w-16 h-16 text-white/30 mb-3" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <p className="text-white/60 text-sm text-center font-medium">{book.title}</p>
+                          </div>
+                        )}
+                        
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                        
+                        <div className="absolute top-3 left-3 flex gap-1">
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold text-white bg-purple-600">
+                            {book.trackingMode === 'chapter' ? `${book.totalChapters || '?'} ch` : `${book.totalPages || '?'} pg`}
+                          </span>
+                          {book.addedBy === userName && (
+                            <button onClick={() => handleEditBook(book)} className="px-2 py-1 rounded-full text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700">
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                          <h3 className="text-white font-bold text-xl">{book.title}</h3>
+                          <p className="text-gray-300 text-sm">Added by {book.addedByName}</p>
+                          <p className="text-gray-400 text-xs mt-1">{bookProgress.length} reader{bookProgress.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="flex gap-2">
+                          <button onClick={() => handleSelectBook(book)} className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium text-sm">
+                            View Progress
+                          </button>
+                          {book.addedBy === userName && (
+                            <button onClick={() => handleDeleteBook(book.id)} className="px-3 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </Link>
-              ))}
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Book Modal */}
+      {showAddBook && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAddBook(false)}>
+          <div className="bg-[#1a1f2b] rounded-2xl p-6 max-w-md w-full border border-gray-800" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white mb-4">Add New Book</h3>
+            
+            <input type="text" placeholder="Book Title" value={newBook.title} onChange={(e) => setNewBook({...newBook, title: e.target.value})}
+              className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-3 outline-none border border-gray-700" />
+            
+            <div className="mb-3">
+              <label className="text-gray-400 text-sm mb-2 block">Book Cover (optional)</label>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
+              <div onClick={() => fileInputRef.current?.click()} className="w-full bg-[#2a3040] text-gray-400 px-4 py-3 rounded-lg border border-gray-700 cursor-pointer hover:border-purple-500 transition text-center">
+                {selectedImage ? 'Change Image' : 'Browse from device'}
+              </div>
+              {imagePreview && (
+                <div className="mt-2 relative w-24 h-24 rounded-lg overflow-hidden">
+                  <Image src={imagePreview} alt="Preview" fill className="object-cover" unoptimized />
+                </div>
+              )}
             </div>
             
-            <div className="mt-4">
-              <Link
-                href={`/reading-club/room/create?genre=${genre}`}
-                className="block w-full py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition text-center font-medium"
-              >
-                Create New Room
-              </Link>
+            <div className="mb-3">
+              <label className="text-gray-400 text-sm mb-2 block">Tracking Mode</label>
+              <div className="flex gap-3">
+                <button onClick={() => setNewBook({...newBook, trackingMode: 'chapter'})}
+                  className={`flex-1 py-2 rounded-lg transition ${newBook.trackingMode === 'chapter' ? 'bg-purple-600 text-white' : 'bg-[#2a3040] text-gray-400 border border-gray-700'}`}>
+                  Chapters
+                </button>
+                <button onClick={() => setNewBook({...newBook, trackingMode: 'page'})}
+                  className={`flex-1 py-2 rounded-lg transition ${newBook.trackingMode === 'page' ? 'bg-purple-600 text-white' : 'bg-[#2a3040] text-gray-400 border border-gray-700'}`}>
+                  Pages
+                </button>
+              </div>
+            </div>
+            
+            {newBook.trackingMode === 'chapter' ? (
+              <input type="number" placeholder="Total Chapters" value={newBook.totalChapters || ''} onChange={(e) => setNewBook({...newBook, totalChapters: parseInt(e.target.value) || 0})}
+                className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-4 outline-none border border-gray-700" />
+            ) : (
+              <input type="number" placeholder="Total Pages" value={newBook.totalPages || ''} onChange={(e) => setNewBook({...newBook, totalPages: parseInt(e.target.value) || 0})}
+                className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-4 outline-none border border-gray-700" />
+            )}
+            
+            <div className="flex gap-3">
+              <button onClick={handleAddBook} className="flex-1 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition font-medium">
+                Add Book
+              </button>
+              <button onClick={() => { setShowAddBook(false); setSelectedImage(null); setImagePreview(''); }} className="px-6 py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition">
+                Cancel
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mode Selection Modal */}
-      {showModeSelection && selectedBook && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1f2b] rounded-2xl p-6 max-w-3xl w-full border border-gray-800">
+      {/* Edit Book Modal */}
+      {showEditBook && editBook && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditBook(false)}>
+          <div className="bg-[#1a1f2b] rounded-2xl p-6 max-w-md w-full border border-gray-800" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white mb-4">Edit Book</h3>
+            
+            <input type="text" placeholder="Book Title" value={editBook.title} onChange={(e) => setEditBook({...editBook, title: e.target.value})}
+              className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-3 outline-none border border-gray-700" />
+            
+            <div className="mb-3">
+              <label className="text-gray-400 text-sm mb-2 block">Tracking Mode</label>
+              <div className="flex gap-3">
+                <button onClick={() => setEditBook({...editBook, trackingMode: 'chapter'})}
+                  className={`flex-1 py-2 rounded-lg transition ${editBook.trackingMode === 'chapter' ? 'bg-purple-600 text-white' : 'bg-[#2a3040] text-gray-400 border border-gray-700'}`}>
+                  Chapters
+                </button>
+                <button onClick={() => setEditBook({...editBook, trackingMode: 'page'})}
+                  className={`flex-1 py-2 rounded-lg transition ${editBook.trackingMode === 'page' ? 'bg-purple-600 text-white' : 'bg-[#2a3040] text-gray-400 border border-gray-700'}`}>
+                  Pages
+                </button>
+              </div>
+            </div>
+            
+            {editBook.trackingMode === 'chapter' ? (
+              <input type="number" placeholder="Total Chapters" value={editBook.totalChapters || ''} onChange={(e) => setEditBook({...editBook, totalChapters: parseInt(e.target.value) || 0})}
+                className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-4 outline-none border border-gray-700" />
+            ) : (
+              <input type="number" placeholder="Total Pages" value={editBook.totalPages || ''} onChange={(e) => setEditBook({...editBook, totalPages: parseInt(e.target.value) || 0})}
+                className="w-full bg-[#2a3040] text-white px-4 py-3 rounded-lg mb-4 outline-none border border-gray-700" />
+            )}
+            
+            <div className="flex gap-3">
+              <button onClick={handleSaveEdit} className="flex-1 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition font-medium">
+                Save Changes
+              </button>
+              <button onClick={() => setShowEditBook(false)} className="px-6 py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress & Discussion Modal */}
+      {showProgress && selectedBook && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setShowProgress(false); setShowDiscussion(false); }}>
+          <div className="bg-[#1a1f2b] rounded-2xl p-6 max-w-4xl w-full border border-gray-800 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Choose Reading Mode</h3>
-              <button 
-                onClick={() => {
-                  setShowModeSelection(false);
-                  setSelectedMode(null);
-                }}
-                className="p-2 text-gray-400 hover:text-white transition"
-              >
+              <h3 className="text-2xl font-bold text-white">{selectedBook.title}</h3>
+              <button onClick={() => { setShowProgress(false); setShowDiscussion(false); }} className="p-2 text-gray-400 hover:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {readingModes.map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => setSelectedMode(mode.id)}
-                  className={`bg-gradient-to-br ${mode.color} p-5 rounded-xl text-left hover:scale-[1.02] transition-all ${
-                    selectedMode === mode.id ? 'ring-4 ring-white/30' : ''
-                  }`}
-                >
-                  <div className="w-16 h-16 bg-white/20 rounded-xl p-3 mb-3">
-                    <Image 
-                      src={mode.icon} 
-                      alt={mode.name} 
-                      width={40} 
-                      height={40}
-                      className="object-contain"
-                    />
-                  </div>
-                  <h4 className="text-xl font-bold text-white mb-1">{mode.name}</h4>
-                  <p className="text-white/80 text-sm">{mode.description}</p>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              {selectedMode && (
-                <Link
-                  href={`/reading-club/room/create?book=${selectedBook}&mode=${selectedMode}`}
-                  className="flex-1 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition text-center font-medium whitespace-nowrap"
-                >
-                  {selectedMode === 'group' ? 'Create New Room' : `Start ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} Reading`}
-                </Link>
-              )}
-              <button
-                onClick={() => setShowModeSelection(false)}
-                className="px-6 py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition whitespace-nowrap"
-              >
-                Cancel
+            <div className="flex gap-4 mb-6 border-b border-gray-800">
+              <button onClick={() => setShowDiscussion(false)} className={`pb-2 px-2 text-lg font-medium transition ${!showDiscussion ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400'}`}>
+                Reading Progress
+              </button>
+              <button onClick={() => setShowDiscussion(true)} className={`pb-2 px-2 text-lg font-medium transition ${showDiscussion ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400'}`}>
+                Discussion
               </button>
             </div>
+            
+            {!showDiscussion ? (
+              <>
+                <div className="bg-[#2a3040] rounded-xl p-4 mb-6">
+                  <h4 className="text-white font-semibold mb-3">Update Your Progress</h4>
+                  <div className="flex items-end gap-4">
+                    {selectedBook.trackingMode === 'chapter' ? (
+                      <div className="flex-1">
+                        <label className="text-gray-400 text-sm mb-1 block">Current Chapter (max {selectedBook.totalChapters || '?'})</label>
+                        <input type="number" min="1" max={selectedBook.totalChapters} value={userProgress.currentChapter} onChange={(e) => setUserProgress({...userProgress, currentChapter: parseInt(e.target.value) || 1})}
+                          className="w-full bg-[#1a1f2b] text-white px-4 py-2 rounded-lg border border-gray-700" />
+                      </div>
+                    ) : (
+                      <div className="flex-1">
+                        <label className="text-gray-400 text-sm mb-1 block">Current Page (max {selectedBook.totalPages || '?'})</label>
+                        <input type="number" min="1" max={selectedBook.totalPages} value={userProgress.currentPage} onChange={(e) => setUserProgress({...userProgress, currentPage: parseInt(e.target.value) || 1})}
+                          className="w-full bg-[#1a1f2b] text-white px-4 py-2 rounded-lg border border-gray-700" />
+                      </div>
+                    )}
+                    <button onClick={handleUpdateProgress} className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                      Update
+                    </button>
+                  </div>
+                </div>
+                
+                <h4 className="text-white font-semibold mb-3">Readers Progress</h4>
+                {progress.length === 0 ? (
+                  <p className="text-gray-400 text-center py-4">No reading progress yet. Be the first!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {progress.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-[#2a3040] rounded-lg">
+                        <span className="text-white">{p.userName}</span>
+                        <span className="text-purple-400">
+                          {selectedBook.trackingMode === 'chapter' ? `Chapter ${p.currentChapter}` : `Page ${p.currentPage}`}
+                        </span>
+                        <span className="text-gray-500 text-sm">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Write a comment..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddDiscussion()}
+                      className="flex-1 bg-[#2a3040] text-white px-4 py-2 rounded-lg outline-none border border-gray-700" />
+                    <button onClick={handleAddDiscussion} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                      Send
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {discussions.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No discussions yet. Start the conversation!</p>
+                  ) : (
+                    discussions.map((d) => (
+                      <div key={d.id} className="bg-[#2a3040] rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-white font-medium">{d.userName}</span>
+                          {(d.chapter || d.page) && (
+                            <span className="text-purple-400 text-xs">
+                              {d.chapter ? `Ch. ${d.chapter}` : `Pg. ${d.page}`}
+                            </span>
+                          )}
+                          <span className="text-gray-500 text-xs ml-auto">{new Date(d.createdAt).toLocaleTimeString()}</span>
+                        </div>
+                        <p className="text-gray-300">{d.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
